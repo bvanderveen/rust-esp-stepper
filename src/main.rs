@@ -12,8 +12,10 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
+const STEP_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_17;
+const DIRECTION_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_18;
 const BLINK_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_2;
-const UART_NUM: uart_port_t = uart_port_t_UART_NUM_1;
+const UART_NUM: uart_port_t = uart_port_t_UART_NUM_0;
 //const ECHO_TEST_TXD: i32 = gpio_num_t_GPIO_NUM_17 as i32;
 //const ECHO_TEST_RXD: i32 = gpio_num_t_GPIO_NUM_16 as i32;
 const ECHO_TEST_TXD: i32 = gpio_num_t_GPIO_NUM_1 as i32;
@@ -31,10 +33,11 @@ pub fn app_main() {
 }
 
 unsafe fn rust_blink_and_write() {
-    gpio_pad_select_gpio(BLINK_GPIO as u8);
+    gpio_pad_select_gpio(STEP_GPIO as u8);
+    gpio_set_direction(STEP_GPIO, gpio_mode_t_GPIO_MODE_OUTPUT);
 
-    /* Set the GPIO as a push/pull output */
-    gpio_set_direction(BLINK_GPIO, gpio_mode_t_GPIO_MODE_OUTPUT);
+    gpio_pad_select_gpio(DIRECTION_GPIO as u8);
+    gpio_set_direction(DIRECTION_GPIO, gpio_mode_t_GPIO_MODE_OUTPUT);
 
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
@@ -52,23 +55,91 @@ unsafe fn rust_blink_and_write() {
     uart_set_pin(UART_NUM, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS);
     uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, ptr::null_mut(), 0);
 
+    let tick_period_ms: u32 = 1000 / xPortGetTickRateHz();
+
+    let channel = rmt_channel_t_RMT_CHANNEL_0;
+
+    rmt_init(channel, STEP_GPIO);
+    let steps_per_second = 40 * 2;
+    let milliseconds_per_second = 1000;
+    let milliseconds_per_step = milliseconds_per_second / steps_per_second;
+    let step_period = milliseconds_per_step / tick_period_ms;
+
+    let mut i = 0 as u32;
+    let mut direction = 0 as u32;
+
+    gpio_set_level(DIRECTION_GPIO, direction);
     loop {
+        i = i + 1;
+        if i > 10 {
+            i = 0;
+            direction = if direction == 0 { 1 } else { 0 };
+            gpio_set_level(DIRECTION_GPIO, direction);
+        }
 
-        /* Blink off (output low) */
-        gpio_set_level(BLINK_GPIO, 0);
+        //gpio_set_level(STEP_GPIO, 0);
 
-        //vTaskDelay(1000 / portTICK_PERIOD_MS);
-        ets_delay_us(1_000_000);
+        //vTaskDelay(step_period);
 
-        // Write data to UART.
-        let test_str = "This is a test string.\n";
-        uart_write_bytes(UART_NUM, test_str.as_ptr() as *const _, test_str.len());
 
-        /* Blink on (output high) */
-        gpio_set_level(BLINK_GPIO, 1);
+        //gpio_set_level(STEP_GPIO, 1);
+        let msg = "direction is ";
+        log(msg.as_ptr(), msg.len());
 
-        // vTaskDelay(1000 / portTICK_PERIOD_MS);
-        ets_delay_us(1_000_000);
+        //vTaskDelay(step_period);
+
+        let messages: [rmt_item32_t; 8] = [
+                item(32767,1,32767,0),
+                item(32767,1,32767,0),
+                item(32767,0,32767,0),
+                item(32767,0,32767,0),
+                item(32767,1,32767,0),
+                item(32767,1,32767,0),
+                item(32767,0,32767,0),
+                item(32767,0,32767,0)
+        ];
+
+       rmt_write_items(channel, messages.as_ptr(), 8, false);
     }
+}
+
+unsafe fn item(a: u32, b: u32, c: u32, d: u32) -> rmt_item32_t{
+        let message = rmt_item32_t {
+            __bindgen_anon_1: rmt_item32_t__bindgen_ty_1 {
+                __bindgen_anon_1: rmt_item32_t__bindgen_ty_1__bindgen_ty_1 { _bitfield_1: rmt_item32_t__bindgen_ty_1__bindgen_ty_1::new_bitfield_1(a, b, c ,d) },
+                }
+        };
+        return message;
+}
+
+unsafe fn log(message: *const u8, len: usize){
+    uart_write_bytes(UART_NUM, message as *const _, len);
+}
+
+unsafe fn rmt_init(channel_id: rmt_channel_t, gpio: gpio_num_t) {
+    let config = rmt_config_t {
+        rmt_mode: rmt_mode_t_RMT_MODE_TX,
+        channel: channel_id,
+        gpio_num: gpio,
+        clk_div: 255,
+        mem_block_num: 1,
+        //flags: 0,
+            __bindgen_anon_1: rmt_config_t__bindgen_ty_1 {
+                tx_config: rmt_tx_config_t {
+                        loop_en: false,
+                        carrier_freq_hz: 100,
+                        carrier_duty_percent: 50,
+                        carrier_level: rmt_carrier_level_t_RMT_CARRIER_LEVEL_HIGH,
+                        idle_level: rmt_idle_level_t_RMT_IDLE_LEVEL_LOW,
+                        carrier_en: true,
+                        idle_output_en: true
+                }
+            },
+    };
+    rmt_config(&config);
+    rmt_driver_install(config.channel, 0, 0);
+}
+
+unsafe fn rmt_write() {
 }
 
