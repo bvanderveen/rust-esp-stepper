@@ -1,4 +1,10 @@
 target/
 build/
 Cargo.lock
+esp-idf
+.cargo/
+main/
+Makefile
+sdkconfig
+esp32-sys/src/bindings.rs
 
