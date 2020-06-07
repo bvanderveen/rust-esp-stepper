@@ -12,10 +12,10 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
-const STEP_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_17;
-const DIRECTION_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_18;
+// const STEP_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_17;
+// const DIRECTION_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_18;
 
-const BLINK_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_2;
+// const BLINK_GPIO: gpio_num_t = gpio_num_t_GPIO_NUM_2;
 const UART_NUM: uart_port_t = uart_port_t_UART_NUM_0;
 //const ECHO_TEST_TXD: i32 = gpio_num_t_GPIO_NUM_17 as i32;
 //const ECHO_TEST_RXD: i32 = gpio_num_t_GPIO_NUM_16 as i32;
@@ -34,32 +34,41 @@ pub fn app_main() {
 }
 
 mod motor {
-    struct Config{step_gpio: gpio_num_t, direction_gpio: gpio_num_t, rmt_channel: rmt_channel_t)
-    struct LevelDuration(level: u32, duration: u32)
+    pub struct Config {
+         step_gpio: super::gpio_num_t, 
+         direction_gpio: super::gpio_num_t, 
+         rmt_channel: super::rmt_channel_t 
+    }
+    // struct LevelDuration { level: u32, duration: u32 }
 
     impl Config {
-        pub fn initialize(&self) {
-            gpio_pad_select_gpio(self.step_gpio as u8);
-            gpio_set_direction(self.step_gpio, gpio_mode_t_GPIO_MODE_OUTPUT);
+        pub fn new(step_gpio: super::gpio_num_t, direction_gpio: super::gpio_num_t, rmt_channel: super::rmt_channel_t) -> Config {
+            Config {
+                step_gpio, direction_gpio, rmt_channel
+            }
+        }
 
-            gpio_pad_select_gpio(self.direction_gpio as u8);
-            gpio_set_direction(self.direction_gpio, gpio_mode_t_GPIO_MODE_OUTPUT);
+        pub unsafe fn initialize(&self) {
+            super::gpio_pad_select_gpio(self.step_gpio as u8);
+            super::gpio_set_direction(self.step_gpio, super::gpio_mode_t_GPIO_MODE_OUTPUT);
+
+            super::gpio_pad_select_gpio(self.direction_gpio as u8);
+            super::gpio_set_direction(self.direction_gpio, super::gpio_mode_t_GPIO_MODE_OUTPUT);
             
-            rmt_init(self.rmt_channel, self.step_gpio);
+            super::rmt_init(self.rmt_channel, self.step_gpio);
         }
 
-        pub fn set_direction(&self, bool direction) {
-            gpio_set_level(self.direction_gpio, if direction { 1 } else { 0 } as u32);
+        pub unsafe fn set_direction(&self, direction: bool) {
+            super::gpio_set_level(self.direction_gpio, if direction { 1 } else { 0 } as u32);
         }
 
-        pub fn write_items(&self, items: &[rmt_item32_t]) {
-            rmt_write_items(self.rmt_channel, items.as_ptr(), items.len(), false);  
+        pub unsafe fn write_items(&self, items: &[super::rmt_item32_t]) {
+            super::rmt_write_items(self.rmt_channel, items.as_ptr(), items.len() as i32, true);  
         }
     }
-    
 }
 
-pub use self::motor::Config
+pub use self::motor::Config;
 unsafe fn rust_blink_and_write() {
     //gpio_pad_select_gpio(STEP_GPIO as u8);
     //gpio_set_direction(STEP_GPIO, gpio_mode_t_GPIO_MODE_OUTPUT);
@@ -67,15 +76,17 @@ unsafe fn rust_blink_and_write() {
     //gpio_pad_select_gpio(DIRECTION_GPIO as u8);
     //gpio_set_direction(DIRECTION_GPIO, gpio_mode_t_GPIO_MODE_OUTPUT);
 
-    let motor_x = motor::Config { 
-        step_gpio: gpio_num_t_GPIO_NUM_17; 
-        direction_gpio: gpio_num_t_GPIO_NUM_18;
-    };
+    let motor_x = motor::Config::new(
+        gpio_num_t_GPIO_NUM_15,
+        gpio_num_t_GPIO_NUM_16,
+        rmt_channel_t_RMT_CHANNEL_0
+    );
 
-    let motor_y = motor::Config { 
-        step_gpio: gpio_num_t_GPIO_NUM_17; 
-        direction_gpio: gpio_num_t_GPIO_NUM_18;
-    };
+    let motor_y = motor::Config::new( 
+        gpio_num_t_GPIO_NUM_17,
+        gpio_num_t_GPIO_NUM_18,
+        rmt_channel_t_RMT_CHANNEL_1
+    );
 
     motor_x.initialize();
     motor_y.initialize();
@@ -96,55 +107,271 @@ unsafe fn rust_blink_and_write() {
 
     let tick_period_ms: u32 = 1000 / xPortGetTickRateHz();
 
-    let channel = rmt_channel_t_RMT_CHANNEL_0;
+    // let channel = rmt_channel_t_RMT_CHANNEL_0;
 
     //rmt_init(channel, STEP_GPIO);
-    let steps_per_second = 40 * 2;
-    let milliseconds_per_second = 1000;
-    let milliseconds_per_step = milliseconds_per_second / steps_per_second;
-    let step_period = milliseconds_per_step / tick_period_ms;
+    // let steps_per_second = 200 * 2;
+    // let milliseconds_per_second = 1000;
+    // let milliseconds_per_step = milliseconds_per_second / steps_per_second;
+    // let step_period = milliseconds_per_step / tick_period_ms;
+
+    let wait = 1000 / tick_period_ms;
 
     let mut i = 0 as u32;
     let mut direction = false;
 
     //gpio_set_level(DIRECTION_GPIO, direction);
-    motor_x.set_direction(direction);
+    motor_x.set_direction(!direction);
     motor_y.set_direction(direction);
     loop {
         i = i + 1;
-        if i > 10 {
+        if i == 8 {
             i = 0;
             direction = !direction; 
-            motor_x.set_direction(direction);
+            motor_x.set_direction(!direction);
             motor_y.set_direction(direction);
         }
 
 
         //gpio_set_level(STEP_GPIO, 0);
 
-        //vTaskDelay(step_period);
+        vTaskDelay(wait);
 
 
         //gpio_set_level(STEP_GPIO, 1);
-        let msg = "direction is ";
-        log(msg.as_ptr(), msg.len());
+        // let msg = "direction is ";
+        // log(msg.as_ptr(), msg.len());
 
-        //vTaskDelay(step_period);
+        let duration = 128;
 
-        let messages: [rmt_item32_t; 8] = [
-                item(32767,1,32767,0),
-                item(32767,1,32767,0),
-                item(32767,0,32767,0),
-                item(32767,0,32767,0),
-                item(32767,1,32767,0),
-                item(32767,1,32767,0),
-                item(32767,0,32767,0),
-                item(32767,0,32767,0)
+        let messages: [rmt_item32_t; 200] = [
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0),
+            item(duration,1,duration,0)
         ];
 
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
 
-       motor_x.write_items(&messages);
-       motor_y.write_items(&messages);
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
+
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
+
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
+
+
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
+
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
+
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
+
+        motor_x.write_items(&messages);
+        motor_y.write_items(&messages);
+
 
 //rmt_write_items(channel, messages.as_ptr(), 8, false);
     }
@@ -152,15 +379,15 @@ unsafe fn rust_blink_and_write() {
 
 unsafe fn item(a: u32, b: u32, c: u32, d: u32) -> rmt_item32_t {
         let message = rmt_item32_t {
-            __bindgen_anon_1: rmt_item32_t__bindgen_ty_1 {
-                __bindgen_anon_1: rmt_item32_t__bindgen_ty_1__bindgen_ty_1 { _bitfield_1: rmt_item32_t__bindgen_ty_1__bindgen_ty_1::new_bitfield_1(a, b, c ,d) },
+            __bindgen_anon_1: rmt_item32_s__bindgen_ty_1 {
+                __bindgen_anon_1: rmt_item32_s__bindgen_ty_1__bindgen_ty_1 { _bitfield_1: rmt_item32_s__bindgen_ty_1__bindgen_ty_1::new_bitfield_1(a, b, c ,d) },
                 }
         };
         return message;
 }
 
 unsafe fn log(message: *const u8, len: usize){
-    uart_write_bytes(UART_NUM, message as *const _, len);
+    uart_write_bytes(UART_NUM, message as *const _, len as u32);
 }
 
 unsafe fn rmt_init(channel_id: rmt_channel_t, gpio: gpio_num_t) {
@@ -171,17 +398,17 @@ unsafe fn rmt_init(channel_id: rmt_channel_t, gpio: gpio_num_t) {
         clk_div: 255,
         mem_block_num: 1,
         //flags: 0,
-            __bindgen_anon_1: rmt_config_t__bindgen_ty_1 {
-                tx_config: rmt_tx_config_t {
-                        loop_en: false,
-                        carrier_freq_hz: 100,
-                        carrier_duty_percent: 50,
-                        carrier_level: rmt_carrier_level_t_RMT_CARRIER_LEVEL_HIGH,
-                        idle_level: rmt_idle_level_t_RMT_IDLE_LEVEL_LOW,
-                        carrier_en: true,
-                        idle_output_en: true
-                }
-            },
+        __bindgen_anon_1: rmt_config_t__bindgen_ty_1 {
+            tx_config: rmt_tx_config_t {
+                    loop_en: false,
+                    carrier_freq_hz: 0,
+                    carrier_duty_percent: 0,
+                    carrier_level: rmt_carrier_level_t_RMT_CARRIER_LEVEL_HIGH,
+                    idle_level: rmt_idle_level_t_RMT_IDLE_LEVEL_LOW,
+                    carrier_en: false,
+                    idle_output_en: true
+            }
+        },
     };
     rmt_config(&config);
     rmt_driver_install(config.channel, 0, 0);
