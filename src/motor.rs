@@ -128,6 +128,9 @@ impl MotorController {
 
     pub fn initialize(&mut self) -> bool {
         unsafe {
+            periph_module_reset(periph_module_t_PERIPH_RMT_MODULE);
+            periph_module_enable(periph_module_t_PERIPH_RMT_MODULE);
+
             let flags = 0;
             let mut handle = MaybeUninit::uninit();
             let context: *mut core::ffi::c_void = self as *mut _ as *mut core::ffi::c_void;
